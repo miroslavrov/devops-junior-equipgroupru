@@ -1,0 +1,159 @@
+groups:
+  - name: host
+    interval: 30s
+    rules:
+      - alert: HostCpuIdleLow
+        expr: avg by (host) (rate(node_cpu_seconds_total{mode="idle"}[10m])) * 100 < 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "хост: idle cpu < 10% за 10 минут"
+          description: "хост {{ $labels.host }}: средний idle = {{ $value | printf \"%.1f\" }}% за последние 10 минут"
+
+      - alert: HostDiskSpaceLow
+        expr: 100 * (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|aufs|squashfs"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|aufs|squashfs"}) < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "хост: свободного места < 10%"
+          description: "{{ $labels.mountpoint }}: свободно {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HostInodesLow
+        expr: 100 * (node_filesystem_files_free{fstype!~"tmpfs|overlay|aufs|squashfs"} / node_filesystem_files{fstype!~"tmpfs|overlay|aufs|squashfs"}) < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "хост: свободных inodes < 10%"
+          description: "{{ $labels.mountpoint }}: свободно inodes {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HostDiskIoSaturated
+        expr: rate(node_disk_io_time_seconds_total[3m]) * 100 > 95
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "хост: нагрузка на диск > 95% за 3 минуты"
+          description: "{{ $labels.device }}: загрузка {{ $value | printf \"%.1f\" }}%"
+
+      - alert: HostSwapHigh
+        expr: 100 * (1 - node_memory_SwapFree_bytes / (node_memory_SwapTotal_bytes > 0)) > 90
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "хост: swap заполнен > 90%"
+          description: "использование swap {{ $value | printf \"%.1f\" }}%"
+
+  - name: docker
+    interval: 30s
+    rules:
+      - alert: DockerCadvisorDown
+        expr: up{job="cadvisor"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "docker: cadvisor недоступен"
+          description: "не получается собрать метрики с docker-демона уже 2 минуты"
+
+      - alert: DockerContainerCountChanged
+        expr: changes(count(time() - container_last_seen{name!=""})[5m:30s]) > 0
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: "docker: изменилось число запущенных контейнеров"
+          description: "за последние 5 минут количество контейнеров менялось — посмотри состояние стенда"
+
+      - alert: DockerContainerRestarting
+        expr: rate(container_restart_count{name!=""}[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "docker: контейнер {{ $labels.name }} рестартует"
+          description: "контейнер {{ $labels.name }} перезапускается, частота = {{ $value | printf \"%.2f\" }}/сек"
+
+  - name: nginx
+    interval: 30s
+    rules:
+      - alert: NginxNoTraffic
+        expr: rate(nginx_http_requests_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "nginx: rps = 0 в течение 10 минут"
+          description: "балансировщик не получает запросов уже 10 минут"
+
+      - alert: Nginx5xxErrors
+        expr: sum(rate(nginx_http_response_count_total{status=~"5.."}[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "nginx: 5xx-ошибки в приложении"
+          description: "rate 5xx = {{ $value | printf \"%.2f\" }} req/sec за последние 5 минут"
+
+  - name: php-fpm
+    interval: 30s
+    rules:
+      - alert: PhpFpmNoTraffic
+        expr: rate(phpfpm_accepted_connections{}[3m]) == 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "php-fpm: rps = 0 в течение 3 минут"
+          description: "пул {{ $labels.pool }} на {{ $labels.instance }} не принимает запросы"
+
+      - alert: PhpFpmDown
+        expr: up{job="php-fpm"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "php-fpm: экспортёр недоступен"
+          description: "не собираются метрики php-fpm"
+
+      - alert: PhpFpmMaxChildrenReached
+        expr: increase(phpfpm_max_children_reached{}[5m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "php-fpm: достигнут лимит воркеров"
+          description: "пул {{ $labels.pool }} упёрся в pm.max_children — пора увеличивать"
+
+  - name: mysql
+    interval: 30s
+    rules:
+      - alert: MysqlDown
+        expr: mysql_up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "mysql: {{ $labels.instance_name }} недоступен"
+          description: "экземпляр {{ $labels.role }} ({{ $labels.instance_name }}) не отвечает"
+
+      - alert: MysqlReplicationBroken
+        expr: mysql_slave_status_slave_sql_running{role="slave"} == 0 or mysql_slave_status_slave_io_running{role="slave"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "mysql: репликация остановлена"
+          description: "на slave один из потоков (IO/SQL) не работает"
+
+      - alert: MysqlReplicationLag
+        expr: mysql_slave_status_seconds_behind_master{role="slave"} > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "mysql: лаг репликации > 60 секунд"
+          description: "slave отстаёт от master на {{ $value }} секунд"
