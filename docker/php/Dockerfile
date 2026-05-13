@@ -8,7 +8,7 @@ COPY src/ ./
 RUN npm run prod
 
 
-FROM php:8.2-fpm-bookworm AS app
+FROM php:8.1-fpm-bookworm AS app
 
 ENV COMPOSER_ALLOW_SUPERUSER=1 \
     COMPOSER_HOME=/tmp/composer \
