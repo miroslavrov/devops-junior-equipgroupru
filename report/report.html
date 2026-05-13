@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  @page {
+    size: A4;
+    margin: 20mm 18mm;
+    @bottom-right { content: counter(page); font-size: 9pt; color: #888; }
+  }
+  body { font-family: "DejaVu Sans", sans-serif; font-size: 11pt; line-height: 1.5; color: #222; }
+  h1 { font-size: 22pt; margin-top: 80mm; text-align: center; }
+  h2 { font-size: 15pt; margin-top: 16pt; border-bottom: 1px solid #ddd; padding-bottom: 4pt; }
+  h3 { font-size: 12pt; margin-top: 12pt; }
+  .subtitle { text-align: center; font-size: 13pt; color: #555; margin-top: 8pt; }
+  .meta { text-align: center; font-size: 10pt; color: #777; margin-top: 40mm; }
+  table { border-collapse: collapse; width: 100%; margin: 8pt 0; }
+  th, td { border: 1px solid #ccc; padding: 4pt 6pt; font-size: 10pt; }
+  th { background: #f5f5f5; }
+  img { max-width: 100%; margin: 6pt 0; border: 1px solid #ddd; }
+  .page-break { page-break-before: always; }
+  ul { margin: 4pt 0; padding-left: 16pt; }
+  .check { color: green; } .cross { color: red; }
+  code { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; background: #f0f0f0; padding: 1pt 3pt; }
+  pre { font-family: "DejaVu Sans Mono", monospace; font-size: 9pt; background: #f5f5f5; padding: 8pt; overflow: auto; }
+</style>
+</head>
+<body>
+
+<h1>Тестовое задание<br>Junior DevOps</h1>
+<div class="subtitle">Docker-инфраструктура для Laravel-приложения</div>
+<div class="meta">
+  Кандидат: all4designer<br>
+  Дата: май 2026
+</div>
+
+<div class="page-break"></div>
+<h2>Задание</h2>
+<p>Требовалось развернуть PHP-приложение (Laravel 9, TODO List) с помощью Docker Compose. Основные пункты:</p>
+<ul>
+  <li>контейнеризация приложения (PHP, Nginx)</li>
+  <li>репликация БД (MariaDB Master → Slave)</li>
+  <li>балансировщик нагрузки (nginx → 2× php-fpm)</li>
+  <li>мониторинг (Prometheus, Alertmanager, Grafana)</li>
+  <li>правила алертов (CPU, диск, inodes, iostat, swap, docker, nginx, php-fpm, mysql)</li>
+  <li>документация, описание архитектуры, инструкция по запуску</li>
+</ul>
+
+<h2>Результат</h2>
+<table>
+  <tr><th>Требование</th><th>Статус</th></tr>
+  <tr><td>Приложение запускается одной командой <code>docker compose up -d --build</code></td><td class="check">выполнено</td></tr>
+  <tr><td>TODO List доступен по http://localhost:8080</td><td class="check">выполнено</td></tr>
+  <tr><td>Репликация Master → Slave (запись в master, чтение со slave)</td><td class="check">выполнено</td></tr>
+  <tr><td>Балансировщик (Nginx, least_conn, 2 бэкенда)</td><td class="check">выполнено</td></tr>
+  <tr><td>Prometheus + правила алертов (16 правил)</td><td class="check">выполнено</td></tr>
+  <tr><td>Grafana с тремя дашбордами</td><td class="check">выполнено</td></tr>
+  <tr><td>Alertmanager с маршрутизацией</td><td class="check">выполнено</td></tr>
+  <tr><td>README с инструкцией, архитектурой, решениями</td><td class="check">выполнено</td></tr>
+  <tr><td>Описание REST API</td><td class="check">выполнено</td></tr>
+  <tr><td>Git-репозиторий с историей коммитов</td><td class="check">выполнено</td></tr>
+</table>
+
+<div class="page-break"></div>
+<h2>Архитектура</h2>
+<pre>
+        ┌──────────────┐
+        │   browser    │
+        └──────┬───────┘
+               │ :8080
+        ┌──────▼───────┐
+        │    nginx     │  балансировщик + раздача статики
+        └──────┬───────┘
+               │ fastcgi (least_conn)
+       ┌───────┴────────┐
+       ▼                ▼
+   ┌──────┐         ┌──────┐
+   │ app1 │         │ app2 │     php-fpm 8.1
+   └──┬───┘         └──┬───┘
+      │ writes          │ reads
+      ▼                 ▼
+ ┌────────┐         ┌────────┐
+ │ master │ ──repl──▶ slave  │     MariaDB 10.11
+ └────────┘         └────────┘
+</pre>
+
+<h3>Контейнеры</h3>
+<table>
+  <tr><th>Сервис</th><th>Образ</th><th>Назначение</th></tr>
+  <tr><td>app1, app2</td><td>equip-todo-app (multi-stage)</td><td>PHP-FPM 8.1, Laravel</td></tr>
+  <tr><td>nginx</td><td>nginx:1.27-alpine</td><td>балансировщик, статика</td></tr>
+  <tr><td>db-master</td><td>mariadb:10.11</td><td>БД для записи</td></tr>
+  <tr><td>db-slave</td><td>mariadb:10.11</td><td>БД для чтения (реплика)</td></tr>
+  <tr><td>migrate</td><td>equip-todo-app</td><td>миграции + seed (one-shot)</td></tr>
+  <tr><td>replication-init</td><td>mariadb:10.11</td><td>настройка репликации (one-shot)</td></tr>
+  <tr><td>node-exporter</td><td>prom/node-exporter</td><td>метрики хоста</td></tr>
+  <tr><td>cadvisor</td><td>gcr.io/cadvisor</td><td>метрики контейнеров</td></tr>
+  <tr><td>nginx-exporter</td><td>nginx/nginx-prometheus-exporter</td><td>stub_status</td></tr>
+  <tr><td>nginxlog-exporter</td><td>prometheus-nginxlog-exporter</td><td>парсинг access-лога (5xx)</td></tr>
+  <tr><td>php-fpm-exporter</td><td>hipages/php-fpm_exporter</td><td>метрики FPM</td></tr>
+  <tr><td>mysqld-exporter ×2</td><td>prom/mysqld-exporter</td><td>метрики master/slave</td></tr>
+  <tr><td>prometheus</td><td>prom/prometheus</td><td>сбор и хранение метрик</td></tr>
+  <tr><td>alertmanager</td><td>prom/alertmanager</td><td>маршрутизация алертов</td></tr>
+  <tr><td>grafana</td><td>grafana/grafana-oss</td><td>визуализация</td></tr>
+</table>
+
+<div class="page-break"></div>
+<h2>Правила алертов</h2>
+<table>
+  <tr><th>Алерт</th><th>Условие</th><th>Severity</th></tr>
+  <tr><td>HostCpuIdleLow</td><td>CPU idle &lt; 10% за 10 мин</td><td>warning</td></tr>
+  <tr><td>HostDiskSpaceLow</td><td>свободно &lt; 10%</td><td>critical</td></tr>
+  <tr><td>HostInodesLow</td><td>inodes свободных &lt; 10%</td><td>critical</td></tr>
+  <tr><td>HostDiskIoSaturated</td><td>io_time &gt; 95% за 3 мин</td><td>warning</td></tr>
+  <tr><td>HostSwapHigh</td><td>swap &gt; 90%</td><td>warning</td></tr>
+  <tr><td>DockerCadvisorDown</td><td>cadvisor недоступен 2 мин</td><td>critical</td></tr>
+  <tr><td>DockerContainerCountChanged</td><td>число контейнеров изменилось</td><td>info</td></tr>
+  <tr><td>DockerContainerRestarting</td><td>перезапуск &gt; 0 за 2 мин</td><td>warning</td></tr>
+  <tr><td>NginxNoTraffic</td><td>RPS = 0 за 10 мин</td><td>warning</td></tr>
+  <tr><td>Nginx5xxErrors</td><td>5xx &gt; 0.1/s за 2 мин</td><td>critical</td></tr>
+  <tr><td>PhpFpmNoTraffic</td><td>принято = 0 за 3 мин</td><td>warning</td></tr>
+  <tr><td>PhpFpmDown</td><td>php-fpm не отвечает</td><td>critical</td></tr>
+  <tr><td>PhpFpmMaxChildrenReached</td><td>пул упёрся в max_children</td><td>warning</td></tr>
+  <tr><td>MysqlDown</td><td>БД недоступна</td><td>critical</td></tr>
+  <tr><td>MysqlReplicationBroken</td><td>IO/SQL thread остановлен</td><td>critical</td></tr>
+  <tr><td>MysqlReplicationLag</td><td>лаг &gt; 60 секунд</td><td>warning</td></tr>
+</table>
+
+<div class="page-break"></div>
+<h2>Скриншоты</h2>
+
+<h3>Приложение (TODO List)</h3>
+<img src="img/00-todo-fresh.png" alt="TODO List">
+<p>Список задач с данными из сидера. Все записи доступны через API (GET /api/items).</p>
+
+<h3>Все задачи отмечены как выполненные</h3>
+<img src="img/01-todo-completed.png" alt="TODO List completed">
+
+<div class="page-break"></div>
+<h3>Grafana — обзор</h3>
+<img src="img/02-grafana-overview.png" alt="Grafana overview">
+<p>CPU idle 52%, свободно памяти 94%, 15 контейнеров, RPS по статус-классам, PHP-FPM процессы, MariaDB QPS.</p>
+
+<h3>Grafana — MariaDB</h3>
+<img src="img/03-grafana-mariadb.png" alt="Grafana MariaDB">
+<p>Master и Slave UP, IO/SQL потоки running, QPS, соединения, InnoDB dirty pages, сетевой ввод-вывод.</p>
+
+<div class="page-break"></div>
+<h3>Grafana — Nginx + PHP-FPM</h3>
+<img src="img/05-grafana-web.png" alt="Grafana Nginx + PHP-FPM">
+<p>RPS, активные соединения, распределение по статус-кодам, PHP-FPM процессы и очередь.</p>
+
+<h3>Prometheus — алерты</h3>
+<img src="img/04-prometheus-alerts.png" alt="Prometheus alerts">
+<p>16 правил алертов: 15 inactive (всё в норме), 1 firing (DockerContainerCountChanged — информационный алерт, срабатывает при перезапуске стека).</p>
+
+<div class="page-break"></div>
+<h2>Принятые решения</h2>
+<ul>
+  <li><strong>PHP 8.1</strong> вместо 8.2 — composer.lock содержит пакеты, несовместимые с 8.2 (nette/schema &lt;8.2).</li>
+  <li><strong>Multi-stage сборка</strong> — nodejs-стадия собирает фронт (npm run prod), финальный образ содержит только PHP и скомпилированные ассеты.</li>
+  <li><strong>least_conn</strong> для балансировки — равномернее распределяет при разной длительности запросов по сравнению с round-robin.</li>
+  <li><strong>Позиционная репликация</strong> (file/position) — проще диагностируется, чем GTID. Для одного мастера достаточна.</li>
+  <li><strong>sync_binlog=1</strong> на мастере — надёжность важнее скорости на учебном стенде.</li>
+  <li><strong>Два экспортёра nginx</strong> — stub_status (nginx-exporter) для RPS/connections и nginxlog-exporter для метрик по статус-кодам (5xx).</li>
+  <li><strong>Именованные тома</strong> для данных (mariadb, prometheus, grafana) — переживают перезапуск стека.</li>
+  <li><strong>Отдельные сети</strong> backend и monitoring — сервисы мониторинга не смешиваются с основным трафиком.</li>
+</ul>
+
+<h2>Файловая структура</h2>
+<pre>
+├── docker-compose.yml
+├── .env.example
+├── Makefile
+├── README.md
+├── src/                  (Laravel as-is)
+├── docker/
+│   ├── php/              Dockerfile, entrypoint, php.ini, www.conf
+│   ├── nginx/            nginx.conf, conf.d/app.conf
+│   ├── mariadb/          master/slave my.cnf, init/setup-replication.sh
+│   ├── prometheus/        prometheus.yml, rules/alerts.yml
+│   ├── alertmanager/     alertmanager.yml
+│   ├── grafana/          provisioning + dashboards (3 JSON)
+│   └── nginxlog-exporter/ config.yml
+└── docs/
+    ├── architecture.md
+    └── api.md
+</pre>
+
+<h2>Запуск</h2>
+<pre>
+cp .env.example .env
+docker compose up -d --build
+</pre>
+<p>После первого запуска (5–10 минут на сборку): приложение на :8080, Grafana на :3000, Prometheus на :9090.</p>
+
+</body>
+</html>
