@@ -1,0 +1,100 @@
+{
+  "uid": "equip-mariadb",
+  "title": "MariaDB — master/slave",
+  "tags": ["equip-todo", "mariadb"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Master доступен",
+      "id": 1,
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}},
+      "targets": [{"refId": "A", "expr": "mysql_up{role=\"master\"}"}]
+    },
+    {
+      "type": "stat",
+      "title": "Slave доступен",
+      "id": 2,
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "UP"}}, "type": "value"}]}},
+      "targets": [{"refId": "A", "expr": "mysql_up{role=\"slave\"}"}]
+    },
+    {
+      "type": "stat",
+      "title": "Slave IO running",
+      "id": 3,
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "stopped"}, "1": {"color": "green", "text": "running"}}, "type": "value"}]}},
+      "targets": [{"refId": "A", "expr": "mysql_slave_status_slave_io_running{role=\"slave\"}"}]
+    },
+    {
+      "type": "stat",
+      "title": "Slave SQL running",
+      "id": 4,
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "stopped"}, "1": {"color": "green", "text": "running"}}, "type": "value"}]}},
+      "targets": [{"refId": "A", "expr": "mysql_slave_status_slave_sql_running{role=\"slave\"}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Запросы в секунду",
+      "id": 5,
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "ops"}},
+      "targets": [
+        {"refId": "A", "expr": "rate(mysql_global_status_queries{role=\"master\"}[1m])", "legendFormat": "master"},
+        {"refId": "B", "expr": "rate(mysql_global_status_queries{role=\"slave\"}[1m])", "legendFormat": "slave"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Открытые соединения",
+      "id": 6,
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "mysql_global_status_threads_connected{role=\"master\"}", "legendFormat": "master"},
+        {"refId": "B", "expr": "mysql_global_status_threads_connected{role=\"slave\"}", "legendFormat": "slave"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Лаг репликации (секунды)",
+      "id": 7,
+      "gridPos": {"x": 0, "y": 12, "w": 24, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"refId": "A", "expr": "mysql_slave_status_seconds_behind_master{role=\"slave\"}", "legendFormat": "лаг slave"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "InnoDB: dirty pages",
+      "id": 8,
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "mysql_global_status_innodb_page_size * mysql_global_status_buffer_pool_dirty_pages{role=\"master\"}", "legendFormat": "master"},
+        {"refId": "B", "expr": "mysql_global_status_innodb_page_size * mysql_global_status_buffer_pool_dirty_pages{role=\"slave\"}", "legendFormat": "slave"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Сетевой ввод-вывод (bytes/s)",
+      "id": 9,
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "Bps"}},
+      "targets": [
+        {"refId": "A", "expr": "rate(mysql_global_status_bytes_sent[1m])", "legendFormat": "sent {{role}}"},
+        {"refId": "B", "expr": "rate(mysql_global_status_bytes_received[1m])", "legendFormat": "received {{role}}"}
+      ]
+    }
+  ]
+}

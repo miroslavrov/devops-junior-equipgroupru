@@ -1,0 +1,92 @@
+{
+  "uid": "equip-web",
+  "title": "Nginx + PHP-FPM",
+  "tags": ["equip-todo", "web"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Nginx: входящие запросы (RPS)",
+      "id": 1,
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "targets": [
+        {"refId": "A", "expr": "rate(nginx_http_requests_total[1m])", "legendFormat": "rps"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx: одновременные соединения",
+      "id": 2,
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "nginx_connections_active", "legendFormat": "active"},
+        {"refId": "B", "expr": "nginx_connections_reading", "legendFormat": "reading"},
+        {"refId": "C", "expr": "nginx_connections_writing", "legendFormat": "writing"},
+        {"refId": "D", "expr": "nginx_connections_waiting", "legendFormat": "waiting"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx: распределение по статус-кодам",
+      "id": 3,
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "targets": [
+        {"refId": "A", "expr": "sum by (status_class) (rate(nginx_http_response_count_total[1m]))", "legendFormat": "{{status_class}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx: время ответа upstream (p95/p50)",
+      "id": 4,
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"refId": "A", "expr": "histogram_quantile(0.5, sum by (le) (rate(nginx_http_upstream_time_seconds_bucket[5m])))", "legendFormat": "p50"},
+        {"refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(nginx_http_upstream_time_seconds_bucket[5m])))", "legendFormat": "p95"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PHP-FPM: процессы (по пулам)",
+      "id": 5,
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "phpfpm_active_processes", "legendFormat": "active {{instance}}"},
+        {"refId": "B", "expr": "phpfpm_idle_processes", "legendFormat": "idle {{instance}}"},
+        {"refId": "C", "expr": "phpfpm_total_processes", "legendFormat": "total {{instance}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PHP-FPM: очередь",
+      "id": 6,
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "phpfpm_listen_queue", "legendFormat": "queue {{instance}}"},
+        {"refId": "B", "expr": "phpfpm_listen_queue_length", "legendFormat": "queue_size {{instance}}"},
+        {"refId": "C", "expr": "phpfpm_max_listen_queue", "legendFormat": "max_seen {{instance}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PHP-FPM: принято запросов / sec",
+      "id": 7,
+      "gridPos": {"x": 0, "y": 24, "w": 24, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "targets": [
+        {"refId": "A", "expr": "rate(phpfpm_accepted_connections[1m])", "legendFormat": "{{instance}}"}
+      ]
+    }
+  ]
+}

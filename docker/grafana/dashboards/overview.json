@@ -1,0 +1,150 @@
+{
+  "uid": "equip-overview",
+  "title": "Equip TODO — обзор",
+  "tags": ["equip-todo", "overview"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {"list": []},
+  "annotations": {"list": []},
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Хост: CPU idle, %",
+      "id": 1,
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 10, "color": "yellow"}, {"value": 30, "color": "green"}]}}},
+      "targets": [{"refId": "A", "expr": "100 * avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))"}]
+    },
+    {
+      "type": "stat",
+      "title": "Хост: свободно памяти, %",
+      "id": 2,
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "red"}, {"value": 15, "color": "yellow"}, {"value": 30, "color": "green"}]}}},
+      "targets": [{"refId": "A", "expr": "100 * node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes"}]
+    },
+    {
+      "type": "stat",
+      "title": "Хост: swap занят, %",
+      "id": 3,
+      "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 70, "color": "yellow"}, {"value": 90, "color": "red"}]}}},
+      "targets": [{"refId": "A", "expr": "100 * (1 - node_memory_SwapFree_bytes / (node_memory_SwapTotal_bytes > 0))"}]
+    },
+    {
+      "type": "stat",
+      "title": "Контейнеров в работе",
+      "id": 4,
+      "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [{"refId": "A", "expr": "count(container_last_seen{name!=\"\"})"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx: RPS (по статус-классам)",
+      "id": 5,
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "targets": [
+        {"refId": "A", "expr": "sum by (status_class) (rate(nginx_http_response_count_total[1m]))", "legendFormat": "{{status_class}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Nginx: 5xx (rate)",
+      "id": 6,
+      "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(nginx_http_response_count_total{status=~\"5..\"}[1m]))", "legendFormat": "5xx"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "PHP-FPM: активные процессы и очередь",
+      "id": 7,
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}},
+      "targets": [
+        {"refId": "A", "expr": "phpfpm_active_processes", "legendFormat": "active {{instance}}"},
+        {"refId": "B", "expr": "phpfpm_idle_processes", "legendFormat": "idle {{instance}}"},
+        {"refId": "C", "expr": "phpfpm_listen_queue", "legendFormat": "queue {{instance}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB: QPS (master vs slave)",
+      "id": 8,
+      "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "ops"}},
+      "targets": [
+        {"refId": "A", "expr": "rate(mysql_global_status_queries{role=\"master\"}[1m])", "legendFormat": "master"},
+        {"refId": "B", "expr": "rate(mysql_global_status_queries{role=\"slave\"}[1m])", "legendFormat": "slave"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "MariaDB: лаг репликации (секунды)",
+      "id": 9,
+      "gridPos": {"x": 0, "y": 20, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "s"}},
+      "targets": [
+        {"refId": "A", "expr": "mysql_slave_status_seconds_behind_master{role=\"slave\"}", "legendFormat": "лаг slave"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "MariaDB: статус потоков slave",
+      "id": 10,
+      "gridPos": {"x": 12, "y": 20, "w": 12, "h": 4},
+      "fieldConfig": {"defaults": {"mappings": [{"options": {"0": {"color": "red", "text": "stopped"}, "1": {"color": "green", "text": "running"}}, "type": "value"}]}},
+      "targets": [
+        {"refId": "A", "expr": "mysql_slave_status_slave_io_running{role=\"slave\"}", "legendFormat": "IO"},
+        {"refId": "B", "expr": "mysql_slave_status_slave_sql_running{role=\"slave\"}", "legendFormat": "SQL"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Контейнеры: использование CPU",
+      "id": 11,
+      "gridPos": {"x": 0, "y": 28, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "percent"}},
+      "targets": [
+        {"refId": "A", "expr": "100 * sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[1m]))", "legendFormat": "{{name}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Контейнеры: RSS память",
+      "id": 12,
+      "gridPos": {"x": 12, "y": 28, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "bytes"}},
+      "targets": [
+        {"refId": "A", "expr": "container_memory_rss{name!=\"\"}", "legendFormat": "{{name}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Диск: занятость I/O, %",
+      "id": 13,
+      "gridPos": {"x": 0, "y": 36, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "targets": [
+        {"refId": "A", "expr": "100 * rate(node_disk_io_time_seconds_total[1m])", "legendFormat": "{{device}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Диск: свободно по разделам, %",
+      "id": 14,
+      "gridPos": {"x": 12, "y": 36, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}},
+      "targets": [
+        {"refId": "A", "expr": "100 * (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay|aufs|squashfs\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay|aufs|squashfs\"})", "legendFormat": "{{mountpoint}}"}
+      ]
+    }
+  ]
+}
