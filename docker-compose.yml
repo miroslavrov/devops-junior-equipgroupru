@@ -129,13 +129,15 @@ services:
       <<: *app-env
       APP_ROLE: app
     volumes:
-      - app_public:/var/www/html/public
+      - app_public:/var/www/html/public:ro
       - app_storage_app2:/var/www/html/storage
     depends_on:
       replication-init:
         condition: service_completed_successfully
       migrate:
         condition: service_completed_successfully
+      app1:
+        condition: service_started
     networks:
       - backend
 
@@ -214,7 +216,7 @@ services:
       - monitoring
 
   nginxlog-exporter:
-    image: martinhelmich/prometheus-nginxlog-exporter:v1.11.0
+    image: quay.io/martinhelmich/prometheus-nginxlog-exporter:v1.11.0
     <<: *restart
     hostname: nginxlog-exporter
     command: ["-config-file", "/etc/prometheus-nginxlog-exporter.yml"]
